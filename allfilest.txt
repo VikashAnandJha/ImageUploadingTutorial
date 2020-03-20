@@ -1,0 +1,203 @@
+ public static void showToast(Context ct, String msg)
+    {
+        Toast.makeText(ct,msg,Toast.LENGTH_SHORT).show();
+
+    }
+    public static Uri getLocalBitmapUri(Bitmap bmp,Context ctx) {
+        Uri bmpUri = null;
+        try {
+            File file =  new File(ctx.getExternalFilesDir(Environment.DIRECTORY_PICTURES), "share_image_" + System.currentTimeMillis() + ".png");
+            FileOutputStream out = new FileOutputStream(file);
+            bmp.compress(Bitmap.CompressFormat.PNG, 90, out);
+            out.close();
+            bmpUri = Uri.fromFile(file);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return bmpUri;
+    }
+    
+    ######################### ParchaActivity ##########
+    package com.vaj.opengrocery;
+
+import android.app.ProgressDialog;
+import android.content.Context;
+import android.graphics.Bitmap;
+import android.graphics.Color;
+import android.os.Bundle;
+import android.util.Log;
+import android.view.Gravity;
+import android.view.MenuItem;
+import android.view.View;
+import android.widget.ImageView;
+import android.widget.Toast;
+
+import androidx.annotation.NonNull;
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.widget.LinearLayoutCompat;
+
+
+import com.squareup.picasso.Picasso;
+import com.vansuita.pickimage.bean.PickResult;
+import com.vansuita.pickimage.bundle.PickSetup;
+import com.vansuita.pickimage.dialog.PickImageDialog;
+import com.vansuita.pickimage.enums.EPickType;
+import com.vansuita.pickimage.listeners.IPickResult;
+
+import net.gotev.uploadservice.MultipartUploadRequest;
+import net.gotev.uploadservice.ServerResponse;
+import net.gotev.uploadservice.UploadInfo;
+import net.gotev.uploadservice.UploadStatusDelegate;
+
+import java.util.UUID;
+
+import io.github.inflationx.viewpump.ViewPumpContextWrapper;
+
+public class UploadParchaActivity extends AppCompatActivity implements IPickResult {
+
+    ImageView pickedImage; String picturePath;
+    @Override
+    protected void attachBaseContext(Context newBase) {
+        super.attachBaseContext(ViewPumpContextWrapper.wrap(newBase));
+    }
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_upload_parcha);
+        getSupportActionBar().setTitle("Upload Your Parcha");
+
+
+        getSupportActionBar().setDisplayHomeAsUpEnabled(true);
+
+
+
+        findViewById(R.id.chooseImage).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                chooseImage();
+            }
+        });
+
+        findViewById(R.id.uploadParchaBtn).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                uploadMyImage();
+            }
+        });
+
+
+        pickedImage=findViewById(R.id.pickedImage);
+
+
+
+
+    }
+
+    void chooseImage()
+    {
+        PickImageDialog.build(new PickSetup()).show(this);
+
+    }
+
+    @Override
+    public void onPickResult(PickResult r) {
+        if (r.getError() == null) {
+            picturePath=r.getPath();
+
+            String urlofimage=config.getLocalBitmapUri(r.getBitmap(),this).toString();
+
+            Picasso.with(this).load(urlofimage).into(pickedImage);
+
+            if(urlofimage.length()>5) findViewById(R.id.uploadParchaBtn).setVisibility(View.VISIBLE);
+
+           // uploadMyImage();
+        } else {
+            //Handle possible errors
+            //TODO: do what you have to do with r.getError();
+
+        }
+    }
+
+    public void uploadMyImage()
+    {
+
+        config.showToast(this,"Uploading image in background !!");
+        //getting the actual path of the image
+        // String path = getPath(filePath);
+
+        //Uploading code
+        try {
+            final ProgressDialog loading = ProgressDialog.show(this, "Please wait...","Updating User Profile image",false,true);
+
+            String uploadId = UUID.randomUUID().toString();
+
+            //Creating a multi part request
+            new MultipartUploadRequest(this, uploadId, config.BASE_URL+"uploadParcha.php")
+
+                    .addFileToUpload(picturePath, "image") //Adding file
+                    .addParameter("uid", config.getData(this,"uid")) //Adding text parameter to the request
+                    .addParameter("dtype", "") //Adding text parameter to the request
+                    // .setNotificationConfig(new UploadNotificationConfig())
+                    .setMaxRetries(2)
+                    .setDelegate(new UploadStatusDelegate() {
+                        @Override
+                        public void onProgress(UploadInfo uploadInfo) {
+
+                        }
+
+                        @Override
+                        public void onError(UploadInfo uploadInfo, Exception exception) {
+
+                        }
+
+                        @Override
+                        public void onCompleted(UploadInfo uploadInfo, ServerResponse serverResponse) {
+                            //config.showToast(DocVerify.this,"PIC UPLOADED: "+serverResponse.getBodyAsString());
+
+
+                            loading.hide();
+
+                            Log.d("img",serverResponse.getBodyAsString());
+                            Picasso.with(UploadParchaActivity.this).load(config.BASE_IMAGE_URL_COMPRESSED+serverResponse.getBodyAsString().trim()).into(pickedImage);
+
+                            Log.d("img",config.BASE+"/image.php?width=100&image="+serverResponse.getBodyAsString().trim());
+
+                            config.showToast(UploadParchaActivity.this,"Successfully Uploaded");
+
+                            finish();
+
+
+
+
+                        }
+
+                        @Override
+                        public void onCancelled(UploadInfo uploadInfo) {
+
+                        }
+                    })
+
+
+                    .startUpload(); //Starting the upload
+
+
+
+
+        } catch (Exception exc) {
+            Toast.makeText(this, exc.getMessage(), Toast.LENGTH_SHORT).show();
+
+        }
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(@NonNull MenuItem item) {
+
+
+        if(item.getItemId()==android.R.id.home)
+        {
+            finish();
+        }
+        return super.onOptionsItemSelected(item);
+    }
+}
+
